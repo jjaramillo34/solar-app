@@ -8,3 +8,4 @@ streamlit_embedcode
 pygeocodio
 plotly-express
 matplotlib
+squarify
