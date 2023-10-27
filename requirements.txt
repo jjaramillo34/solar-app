@@ -6,3 +6,4 @@ streamlit_option_menu
 streamlit_folium
 streamlit_embedcode
 pygeocodio
+plotly-express
