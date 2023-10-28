@@ -18,38 +18,6 @@ geocodio_api = st.secrets["GEOCODIO_API_KEY"]
 st.set_page_config(page_title="Nearby Points of Interest",
                    page_icon=":earth_americas:", layout="wide", initial_sidebar_state="collapsed")
 # st.set_option('deprecation.showPyplotGlobalUse', False)
-st.markdown("""
-<style>
-div[data-testid="metric-container"] {
-   background-color: rgba(28, 131, 225, 0.1);
-   border: 1px solid rgba(28, 131, 225, 0.1);
-   padding: 5% 5% 5% 10%;
-   border-radius: 5px;
-   color: rgb(205, 104, 0);
-   overflow-wrap: break-word;
-}
-
-/* breakline for metric text         */
-div[data-testid="metric-container"] > label[data-testid="stMetricLabel"] > div {
-   overflow-wrap: break-word;
-   white-space: break-spaces;
-   color: black;
-}
-
-@font-face {
-    font-family: 'Poppins', sans-serif;
-    font-style: normal;
-    font-weight: 400;
-    src: url(https://fonts.gstatic.com/s/poppins/v15/pxiByp8kv8JHgFVrLGT9Z1xlEA.ttf) format('truetype');
-    }
-
-html, body, [class*="css"] {
-    font-family: 'Poppins', sans-serif;
-    font-size: 14px;
-    }
-
-</style>
-""", unsafe_allow_html=True)
 
 # Load the CSV file containing points of interest
 
@@ -571,6 +539,39 @@ if __name__ == "__main__":
                             menu_icon="cast", default_index=2, orientation="horizontal")
 
     selected2 = "Mi Ubicacion"
+
+    st.markdown("""
+<style>
+div[data-testid="metric-container"] {
+   background-color: rgba(28, 131, 225, 0.1);
+   border: 1px solid rgba(28, 131, 225, 0.1);
+   padding: 5% 5% 5% 10%;
+   border-radius: 5px;
+   color: rgb(205, 104, 0);
+   overflow-wrap: break-word;
+}
+
+/* breakline for metric text         */
+div[data-testid="metric-container"] > label[data-testid="stMetricLabel"] > div {
+   overflow-wrap: break-word;
+   white-space: break-spaces;
+   color: black;
+}
+
+@font-face {
+    font-family: 'Poppins', sans-serif;
+    font-style: normal;
+    font-weight: 400;
+    src: url(https://fonts.gstatic.com/s/poppins/v15/pxiByp8kv8JHgFVrLGT9Z1xlEA.ttf) format('truetype');
+    }
+
+html, body, [class*="css"] {
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    }
+
+</style>
+""", unsafe_allow_html=True)
 
     if selected2 == "Inicio":
         dashboard()
