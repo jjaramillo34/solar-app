@@ -35,6 +35,11 @@ div[data-testid="metric-container"] > label[data-testid="stMetricLabel"] > div {
    white-space: break-spaces;
    color: red;
 }
+
+
+
+
+    
 </style>
 """, unsafe_allow_html=True)
 
@@ -80,12 +85,15 @@ def main():
     distance = st.sidebar.slider("Selecciona la distancia:", 1, 5, 1, 1)
     # Load the CSV data
     data = load_data()
-    ICON_URL = "https://static-00.iconduck.com/assets.00/solar-panel-icon-2048x1666-6migwmc6.png"
+    # ICON_URL = "https://static-00.iconduck.com/assets.00/solar-panel-icon-2048x1666-6migwmc6.png"
+    # ICON_URL = "https://vinte.sh/images/powersolar.png"
+    ICON_URL = "https://powersolarpr.com/wp-content/uploads/2023/06/Icon-SolarPanel-1.png"
     icon_data = {
         "url": ICON_URL,
-        "width": 50,
-        "height": 50,
-        "anchorY": 50,
+        # "path": ICON_PATH,
+        "width": 150,
+        "height": 150,
+        "anchorY": 150,
     }
 
     # user_location = st.text_input("Enter your address:", "San Juan, Puerto Rico")
@@ -134,6 +142,8 @@ def main():
 
     # st.dataframe(filtered_data['distance'])
 
+    # st.write(icon_data)
+
     # Add a column with the distance from the user's location
     cols = st.columns(4)
 
@@ -167,7 +177,7 @@ def main():
     cols = st.columns([0.65, 0.35])
     # st.write(closest_address.style.applymap(highlight_accuracy))
     cols[1].subheader("Direcciones Cercanas")
-    cols[1].write(closest_address, use_container_width=True)
+    cols[1].dataframe(closest_address, use_container_width=True)
 
     with cols[0]:
         st.subheader("Mapa de Clientes de Energia Solar en Puerto Rico")
@@ -185,7 +195,7 @@ def main():
                 get_position=["longitude", "latitude"],
                 get_icon='icon_data',
                 get_size=2,
-                size_scale=15,
+                size_scale=20,
                 get_color='[200, 30, 0, 160]',
                 pickable=True,
             )
@@ -550,7 +560,7 @@ if __name__ == "__main__":
     selected2 = option_menu(None, menu_option,
                             icons=['house', 'cloud-upload',
                                    "list-task", 'gear'],
-                            menu_icon="cast", default_index=0, orientation="horizontal")
+                            menu_icon="cast", default_index=2, orientation="horizontal")
 
     selected2 = "Mi Ubicacion"
 

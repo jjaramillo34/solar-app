@@ -175,7 +175,7 @@ pyrightconfig.json
 
 # streamlit
 .streamlit/
-.streamlit/config.toml
+#.streamlit/config.toml
 .streamlit/*.py
 .streamlit/secrets.toml
 
