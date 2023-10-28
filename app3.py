@@ -25,7 +25,7 @@ div[data-testid="metric-container"] {
    border: 1px solid rgba(28, 131, 225, 0.1);
    padding: 5% 5% 5% 10%;
    border-radius: 5px;
-   color: rgb(30, 103, 119);
+   color: rgb(205, 104, 0);
    overflow-wrap: break-word;
 }
 
@@ -33,11 +33,20 @@ div[data-testid="metric-container"] {
 div[data-testid="metric-container"] > label[data-testid="stMetricLabel"] > div {
    overflow-wrap: break-word;
    white-space: break-spaces;
-   color: red;
+   color: black;
 }
 
+@font-face {
+    font-family: 'Poppins', sans-serif;
+    font-style: normal;
+    font-weight: 400;
+    src: url(https://fonts.gstatic.com/s/poppins/v15/pxiByp8kv8JHgFVrLGT9Z1xlEA.ttf) format('truetype');
+    }
 
-
+html, body, [class*="css"] {
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    }
 
     
 </style>
