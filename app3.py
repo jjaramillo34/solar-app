@@ -10,27 +10,33 @@ import geopandas as gpd
 import pydeck as pdk
 from shapely import wkt
 from geocodio import GeocodioClient
+# import geodesic from geopy
+from geopy.distance import geodesic
 
 geocodio_api = st.secrets["GEOCODIO_API_KEY"]
 
 st.set_page_config(page_title="Nearby Points of Interest",
-                   page_icon=":earth_americas:", layout="wide", initial_sidebar_state="expanded")
+                   page_icon=":earth_americas:", layout="wide", initial_sidebar_state="collapsed")
 st.set_option('deprecation.showPyplotGlobalUse', False)
-st.markdown(
-    """
+st.markdown("""
 <style>
+div[data-testid="metric-container"] {
+   background-color: rgba(28, 131, 225, 0.1);
+   border: 1px solid rgba(28, 131, 225, 0.1);
+   padding: 5% 5% 5% 10%;
+   border-radius: 5px;
+   color: rgb(30, 103, 119);
+   overflow-wrap: break-word;
+}
+
+/* breakline for metric text         */
 div[data-testid="metric-container"] > label[data-testid="stMetricLabel"] > div {
    overflow-wrap: break-word;
    white-space: break-spaces;
    color: red;
 }
-div[data-testid="metric-container"] > label[data-testid="stMetricLabel"] > div p {
-   font-size: 100% !important;
-}
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 # Load the CSV file containing points of interest
 
@@ -117,29 +123,53 @@ def main():
     filtered_data = data[data.apply(lambda row: great_circle(
         (row['latitude'], row['longitude']), current_location).miles <= distance, axis=1)]
 
+    filtered_data['distance'] = filtered_data.apply(
+        lambda row: distance_2points(row), axis=1)
+
+    # filtered_data['costo_ele'] = filtered_data['costo_ele'].astype(float)
+
     filtered_data['icon_data'] = None
     for i in filtered_data.index:
         filtered_data['icon_data'][i] = icon_data
 
+    # st.dataframe(filtered_data['distance'])
+
     # Add a column with the distance from the user's location
-    cols = st.columns(2)
+    cols = st.columns(4)
 
     with cols[0]:
-        st.write("Distance")
-        filtered_data['distance'] = filtered_data.apply(
-            distance_2points, axis=1)
-        st.write(filtered_data['distance'])
+        # st.write("Name")
+        st.metric(label="Numero de Clientes", value=filtered_data.shape[0])
 
     with cols[1]:
-        st.write("Name")
-        st.metric(label="Total Points", value=filtered_data.shape[0])
+        # st.write("Name")
+        population = filtered_data['TotalPop'].mean()
+        population = round(population)
+        municipality = filtered_data['County'].unique()
+        text = f"El municipio de {municipality[0]} tiene una poblacion de:"
+        st.metric(label=text, value=population)
 
-    cols = st.columns([2, 3])
+    with cols[2]:
+        income = round(filtered_data['Income'].mean())
+        # convert the income to a string with commas
+        income = f"{income:,}"
+        municipality = filtered_data['County'].unique()
+        text = f"{municipality[0]} tiene un ingreso promedio de: "
+        st.metric(label=text, value=f"${income}")
+
+    with cols[3]:
+        income = round(filtered_data['IncomePerCap'].mean())
+        # convert the income to a string with commas
+        income = f"${income:,}"
+        text = f"El ingreso per capita promedio es de: "
+        st.metric(label=text, value=income)
+
+    cols = st.columns([0.65, 0.35])
     # st.write(closest_address.style.applymap(highlight_accuracy))
-    cols[0].subheader("Direcciones Cercanas")
-    cols[0].write(closest_address, use_container_width=True)
+    cols[1].subheader("Direcciones Cercanas")
+    cols[1].write(closest_address, use_container_width=True)
 
-    with cols[1]:
+    with cols[0]:
         st.subheader("Mapa de Clientes de Energia Solar en Puerto Rico")
         # make sure filtered data is not empty
         if filtered_data.shape[0] == 0:
@@ -154,10 +184,62 @@ def main():
                 data=filtered_data,
                 get_position=["longitude", "latitude"],
                 get_icon='icon_data',
-                get_size=4,
+                get_size=2,
                 size_scale=15,
                 get_color='[200, 30, 0, 160]',
                 pickable=True,
+            )
+
+            # add a layer for the current location
+            icon_data = {
+                "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Location_icon_from_Noun_Project.png/600px-Location_icon_from_Noun_Project.png?20210513221840",
+                "width": 50,
+                "height": 50,
+                "anchorY": 50,
+            }
+            current_location_data = pd.DataFrame(
+                {'latitude': [current_location[0]], 'longitude': [current_location[1]], 'icon_data': [icon_data]})
+
+            # st.write(current_location_data)
+            layer1 = pdk.Layer(
+                'IconLayer',
+                data=current_location_data,
+                get_position=["longitude", "latitude"],
+                get_icon='icon_data',
+                get_size=4,
+                size_scale=18,
+                get_color='[200, 30, 0, 160]',
+                pickable=True,
+            )
+
+            # add a text layer with the text mi ubicacion
+            points_layer = pdk.Layer(
+                'TextLayer',
+                data=current_location_data,
+                get_position=["longitude", "latitude"],
+                get_color='[20, 30, 0, 160]',
+                get_text='Mi Ubicacion',
+                get_size=40,
+                get_angle=0,
+                get_text_anchor='middle',
+                get_alignment_baseline='center',
+            )
+
+            # add a great circle layer for the distance around the user location
+            # convert distance from km to meters
+            distance_meters = distance * 1000
+            circle_layer = pdk.Layer(
+                'PolygonLayer',
+                data=[current_location],
+                get_polygon='coordinates',
+                get_fill_color='[255, 255, 255]',
+                filled=True,
+                stroked=False,
+                get_radius=distance_meters,
+                get_line_color=[255, 255, 255],
+                get_line_width=1,
+                pickable=False,
+
             )
 
             # Set the initial map view
@@ -170,7 +252,7 @@ def main():
             # Create the map
             map_plot = pdk.Deck(
                 map_style='mapbox://styles/mapbox/light-v9',
-                layers=[layer],
+                layers=[layer, layer1, points_layer, circle_layer],
                 initial_view_state=view_state,
             )
 
@@ -285,8 +367,7 @@ def dashboard():
                   value=round(data['Income'].mean()))
 
     if show_data:
-        st.subheader("Como funciona la energia solar")
-
+        st.subheader("Data")
         col1, col2 = st.columns([0.60, 0.40])
 
         # show a video in the first column
@@ -464,16 +545,18 @@ def neighborhood():
 
 
 if __name__ == "__main__":
-    menu_option = ["Dashboard", "Neighborhood",
-                   "Nearby Points of Interest", "Settings"]
+    menu_option = ["Inicio", "Municipios",
+                   "Mi Ubicacion", "Otras Herramientas"]
     selected2 = option_menu(None, menu_option,
                             icons=['house', 'cloud-upload',
                                    "list-task", 'gear'],
                             menu_icon="cast", default_index=0, orientation="horizontal")
 
-    if selected2 == "Dashboard":
+    selected2 = "Mi Ubicacion"
+
+    if selected2 == "Inicio":
         dashboard()
-    elif selected2 == "Neighborhood":
+    elif selected2 == "Municipios":
         neighborhood()
-    elif selected2 == "Nearby Points of Interest":
+    elif selected2 == "Mi Ubicacion":
         main()
