@@ -17,7 +17,7 @@ geocodio_api = st.secrets["GEOCODIO_API_KEY"]
 
 st.set_page_config(page_title="Nearby Points of Interest",
                    page_icon=":earth_americas:", layout="wide", initial_sidebar_state="collapsed")
-st.set_option('deprecation.showPyplotGlobalUse', False)
+# st.set_option('deprecation.showPyplotGlobalUse', False)
 st.markdown("""
 <style>
 div[data-testid="metric-container"] {
@@ -48,7 +48,6 @@ html, body, [class*="css"] {
     font-size: 14px;
     }
 
-    
 </style>
 """, unsafe_allow_html=True)
 
