@@ -84,7 +84,7 @@ def main():
     closest_address = pd.DataFrame(address1['results'])
     # remove the columns that are not needed address_components, source
     closest_address = closest_address.drop(
-        columns=['address_components', 'source'])
+        columns=['address_components', 'source']).copy()
     # split the location column into latitude and longitude
     closest_address[['latitude', 'longitude']] = pd.DataFrame(
         closest_address['location'].tolist(), index=closest_address.index)
@@ -114,7 +114,7 @@ def main():
 
     filtered_data['icon_data'] = None
     for i in filtered_data.index:
-        filtered_data['icon_data'][i] = icon_data
+        filtered_data.at[i, 'icon_data'] = icon_data
 
     # st.dataframe(filtered_data['distance'])
 
@@ -132,7 +132,7 @@ def main():
         population = filtered_data['TotalPop'].mean()
         population = round(population)
         municipality = filtered_data['County'].unique()
-        text = f"El municipio de {municipality[0]} tiene una poblacion de:"
+        text = f"El municipio de {municipality[0].split(' ')[0]} tiene una poblacion de: "
         st.metric(label=text, value=population)
 
     with cols[2]:
@@ -140,14 +140,14 @@ def main():
         # convert the income to a string with commas
         income = f"{income:,}"
         municipality = filtered_data['County'].unique()
-        text = f"{municipality[0]} tiene un ingreso promedio de: "
+        text = f"El ingreso promedio del municipio de {municipality[0].split(' ')[0]} es de: "
         st.metric(label=text, value=f"${income}")
 
     with cols[3]:
         income = round(filtered_data['IncomePerCap'].mean())
         # convert the income to a string with commas
         income = f"${income:,}"
-        text = f"El ingreso per capita promedio es de: "
+        text = f"El ingreso per capita del municipio de {municipality[0].split(' ')[0]} es de: "
         st.metric(label=text, value=income)
 
     cols = st.columns([0.65, 0.35])
