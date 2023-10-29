@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import time
+import math
 import geocoder
 from datetime import datetime
 from geopy.distance import great_circle
@@ -16,12 +18,19 @@ from geopy.distance import geodesic
 geocodio_api = st.secrets["GEOCODIO_API_KEY"]
 
 st.set_page_config(page_title="Nearby Points of Interest",
-                   page_icon=":earth_americas:", layout="wide", initial_sidebar_state="collapsed")
-# st.set_option('deprecation.showPyplotGlobalUse', False)
+                   page_icon="🌎", layout="wide", initial_sidebar_state="collapsed")
+st.set_option('deprecation.showPyplotGlobalUse', False)
+# set the width of the sidebar
+st.markdown("""
+<style>
+.sidebar .sidebar-content {
+    width: 400px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 # Load the CSV file containing points of interest
-
-
 def load_data():
     df = pd.read_csv('data_v1.csv')
     return df
@@ -194,7 +203,7 @@ def main():
                 get_icon='icon_data',
                 get_size=4,
                 size_scale=18,
-                get_color='[200, 30, 0, 160]',
+                get_color='[255, 140, 0, 160]',
                 pickable=True,
             )
 
@@ -312,12 +321,12 @@ def dashboard():
 
     # sidebar selection settings
     st.sidebar.title("Settings")
-    show_data = st.sidebar.checkbox("Show Data")
-    show_map = st.sidebar.checkbox("Show Map")
+    show_data = st.sidebar.checkbox("Show Data", value=False)
+    show_map = st.sidebar.checkbox("Show Map", value=True)
     show_graph = st.sidebar.checkbox("Show Graph")
 
     with cols[0]:
-        st.metric(label="Population", value="3,263,584", delta="0.1%")
+        st.metric(label="Poblacion Total", value="3,263,584", delta="0.1%")
     with cols[1]:
         st.metric(label="Total Consumption", value="9,351,471 MWh",
                   delta="2.87 MWh per capita")
@@ -346,11 +355,12 @@ def dashboard():
         st.metric(label="Total Clients", value=data.shape[0])
     with cols[1]:
       # average population per client
-        st.metric(label="Average Population per Client",
-                  value=round(data['TotalPop'].mean()))
+        total_population = format(round(data['TotalPop'].mean()), ",")
+        st.metric(label="Poblacion Promedio de Puerto Rico",
+                  value=total_population)
     with cols[2]:
-        st.metric(label="Average Consumption per Client",
-                  value=round(data['Income'].mean()))
+        income = format(round(data['Income'].mean()), ",")
+        st.metric(label="Ingreso Promedio de Puerto Rico", value=f"${income}")
 
     if show_data:
         st.subheader("Data")
@@ -374,8 +384,172 @@ def dashboard():
             "https://powersolarpr.com/wp-content/uploads/2018/06/PS-Logo.jpg")
 
     if show_map:
+
+        # st.dataframe(data.head(10))
+        # Load in the JSON data
+        DATA_URL = "https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json"
+        json = pd.read_json(DATA_URL)
+        df = pd.DataFrame()
+
+        # st.json(json['features'][0])
+
+        # Custom color scale
+        COLOR_RANGE = [
+            [65, 182, 196],
+            [127, 205, 187],
+            [199, 233, 180],
+            [237, 248, 177],
+            [255, 255, 204],
+            [255, 237, 160],
+            [254, 217, 118],
+            [254, 178, 76],
+            [253, 141, 60],
+            [252, 78, 42],
+            [227, 26, 28],
+            [189, 0, 38],
+            [128, 0, 38],
+        ]
+
+        BREAKS = [-0.6, -0.45, -0.3, -0.15, 0, 0.15,
+                  0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2]
+
+        def color_scale(val):
+            for i, b in enumerate(BREAKS):
+                if val < b:
+                    return COLOR_RANGE[i]
+            return COLOR_RANGE[i]
+
+        def calculate_elevation(val):
+            return math.sqrt(val) * 10
+
+        # Parse the geometry out in Pandas
+        df["coordinates"] = json["features"].apply(
+            lambda row: row["geometry"]["coordinates"])
+        df["valuePerSqm"] = json["features"].apply(
+            lambda row: row["properties"]["valuePerSqm"])
+        df["growth"] = json["features"].apply(
+            lambda row: row["properties"]["growth"])
+        df["elevation"] = json["features"].apply(
+            lambda row: calculate_elevation(row["properties"]["valuePerSqm"]))
+        df["fill_color"] = json["features"].apply(
+            lambda row: color_scale(row["properties"]["growth"]))
+
+        # Add sunlight shadow to the polygons
+        sunlight = {
+            "@@type": "_SunLight",
+            "timestamp": 1564696800000,  # Date.UTC(2019, 7, 1, 22),
+            "color": [255, 255, 255],
+            "intensity": 1.0,
+            "_shadow": True,
+        }
+
+        ambient_light = {"@@type": "AmbientLight",
+                         "color": [255, 255, 255], "intensity": 1.0}
+
+        lighting_effect = {
+            "@@type": "LightingEffect",
+            "shadowColor": [0, 0, 0, 0.5],
+            "ambientLight": ambient_light,
+            "directionalLights": [sunlight],
+        }
+
+        data['exits_radius'] = data.apply(lambda row: great_circle(
+            (row['latitude'], row['longitude']), (18.1388685, -66.2659351)).miles, axis=1)
+
+        data = data[data['exits_radius'] <= 100]
+        # sort by exits radius
+        data = data.sort_values(by=['exits_radius'], ascending=False)
+
+        data['elevation'] = data['exits_radius'].apply(lambda x: x * 2)
+        data['fill_color'] = data['elevation'].apply(
+            lambda x: [255, 140, 0, 160] if x > 1000 else [255, 140, 0, 160])
+        data['line_color'] = data['elevation'].apply(
+            lambda x: [255, 140, 0, 160] if x > 1000 else [255, 140, 0, 160])
+        data['line_width'] = data['elevation'].apply(
+            lambda x: 1 if x > 1000 else 1)
+        data['elevation_scale'] = data['elevation'].apply(
+            lambda x: 100 if x > 1000 else 100)
+        data['radius'] = data['elevation'].apply(
+            lambda x: 50 if x > 1000 else 50)
+        data['size_scale'] = data['elevation'].apply(
+            lambda x: 10 if x > 1000 else 10)
+        data['radius_scale'] = data['elevation'].apply(
+            lambda x: 30 if x > 1000 else 30)
+        data['radius_min_pixels'] = data['elevation'].apply(
+            lambda x: 1 if x > 1000 else 1)
+
+        # create an arrays of arrays of coordinates from the latitude and longitude columns in which each array is a polygon
+        data['coordinates'] = data.apply(
+            lambda row: [[[row['longitude'], row['latitude']]]], axis=1)
+
         st.subheader("Mapa de Clientes de Energia Solar en Puerto Rico")
-        st.map(data, zoom=8)
+
+        # st.dataframe(data.head(10))
+
+        layer = pdk.Layer(
+            'HeatmapLayer',
+            data=data,
+            opacity=0.9,
+            get_position=["longitude", "latitude"],
+            aggregation=pdk.types.String("MEAN"),
+            # color_range=COLOR_BREWER_BLUE_SCALE,
+            threshold=0.1,
+            get_weight='id',
+            pickable=True,
+        )
+
+        points_layer = pdk.Layer(
+            "PolygonLayer",
+            data=data,
+            id="geojson",
+            opacity=0.8,
+            stroked=False,
+            get_polygon="coordinates",
+            filled=True,
+            extruded=True,
+            wireframe=True,
+            get_elevation="elevation",
+            get_fill_color="fill_color",
+            get_line_color=[255, 255, 255],
+            auto_highlight=True,
+            pickable=True,
+        )
+
+        scatterplot = pdk.Layer(
+            'ScatterplotLayer',
+            data=data,
+            pickable=True,
+            opacity=0.9,
+            stroked=True,
+            filled=True,
+            radius_scale=30,
+            radius_min_pixels=1,
+            radius_max_pixels=100,
+            line_width_min_pixels=1,
+            get_position=["longitude", "latitude"],
+            get_radius="exits_radius",
+            get_fill_color=[255, 140, 0, 160],
+            get_line_color=[0, 0, 0],
+
+        )
+
+        # Set the initial map view
+        view_state = pdk.ViewState(
+            latitude=data['latitude'].mean(),
+            longitude=data['longitude'].mean(),
+            zoom=8,
+        )
+
+        # Create the map
+        map_plot = pdk.Deck(
+            map_style='mapbox://styles/mapbox/light-v9',
+            layers=[scatterplot],
+            initial_view_state=view_state,
+        )
+
+        # Display the map
+        st.pydeck_chart(map_plot, use_container_width=True,
+                        )
 
     if show_graph:
         st.subheader(
@@ -385,8 +559,8 @@ def dashboard():
         import squarify
         import numpy as np
 
-        municipios_count = [m for m in data['Municipio'].value_counts()]
-        municipios = [m for m in data['Municipio'].value_counts().index]
+        municipios_count = [m for m in data['County'].value_counts()]
+        municipios = [m for m in data['County'].value_counts().index]
 
         volume = municipios_count
         labels = municipios
@@ -407,26 +581,37 @@ def dashboard():
 def neighborhood():
     st.title("Clientes de Energia Solar en Puerto Rico por Municipio")
 
-    st.subheader("Mapa de Clientes de Energia Solar en Puerto Rico")
-
     data = load_data()
+    # set county to string
+    data['County'] = data['County'].astype(str)
+    # create a new column with the county name without the word Municipio
+    data['County1'] = data['County'].apply(
+        lambda x: x.replace(" Municipio", ""))
+    # create a list of unique municipios
+    unique_municipios = data['County1'].unique().tolist()
+    # add the option for all municipios
+    # unique_municipios.insert(0, ("Todos", "Todos"))
+    # st.write(unique_municipios)
 
-    # print(data.columns)
-
-    unique_municipios = data['Municipio'].unique()
+    # Sidebar for selecting distance
 
     st.sidebar.title("Settings")
     municipio = st.sidebar.selectbox(
-        "Select Municipio:", sorted(unique_municipios))
+        "Selecciona el Municipio:", sorted(unique_municipios), index=0)
 
-    filtered_data = data[data['Municipio'] == municipio]
+    # st.write(municipio)
+    filtered_data = data[data['County1'] == municipio]
 
-    print(filtered_data.shape)
+    # merger filtered data with with electricity consumption data
+    consumption_data = pd.read_csv('consumption.csv')
+
+    filtered_data = filtered_data.merge(
+        consumption_data, how='left', left_on='County', right_on='County')
+
+    # st.write(filtered_data.shape)
 
     start_lat = filtered_data['latitude'].mean()
     start_lon = filtered_data['longitude'].mean()
-
-    print(start_lat, start_lon)
 
     usa = gpd.read_file('cb_2013_us_county_500k.geojson')
     usa = usa[usa['LSAD'] == '13']
@@ -438,16 +623,37 @@ def neighborhood():
 
     # st.map(centroids, zoom=8)
 
-    cols = st.columns(3)
+    # st.dataframe(filtered_data)
 
+    st.subheader(
+        f"Estadisticas de Consumo de Energia en el Municipio de {municipio}")
+
+    cols = st.columns(4)
+    total_consumption = format(round(filtered_data['comp0'].mean()), ",")
+    cols[0].metric(label="Total Consumption",
+                   value=total_consumption, delta="MWh")
+    consumption_per_capita = format(
+        filtered_data['comp1'].mean(), ",")
+    cols[1].metric(label="Consumption per Capita", value=consumption_per_capita,
+                   delta="MWh")
+    co2_emissions = format(round(filtered_data['comp2'].mean()), ",")
+    cols[2].metric(label="CO2 Emissions", value=co2_emissions, delta="kg")
+    c02_emissions_per_capita = format(
+        round(filtered_data['comp3'].mean()), ",")
+    cols[3].metric(label="CO2 Emissions per Capita", value=c02_emissions_per_capita,
+                   delta="kg")
+
+    st.subheader(f"Clientes de Energia Solar en el Municipio de {municipio}")
+    cols = st.columns(3)
     total_clients = filtered_data.shape[0]
+    # st.write(filtered_data.shape)
     cols[0].metric(label="Total Clients", value=total_clients)
     total_population = filtered_data['TotalPop'].mean()
-    cols[1].metric(label="Average Population per Client",
-                   value=round(total_population))
-    total_consumption = filtered_data['Income'].mean()
-    cols[2].metric(label="Average Consumption per Client",
-                   value=round(total_consumption))
+    cols[1].metric(label=f"El Municipio de {municipio} tiene una poblacion de:",
+                   value=f"{round(total_population):,}")
+    total_income = filtered_data['Income'].mean()
+    cols[2].metric(label=f"El Municipio de {municipio} tiene un Ingreso Promedio de:",
+                   value=f"${round(total_income):,}")
 
     st.pydeck_chart(pdk.Deck(
         map_style='mapbox://styles/mapbox/light-v9',
@@ -477,11 +683,11 @@ def neighborhood():
                 "ColumnLayer",
                 data=filtered_data,
                 get_position=["longitude", "latitude"],
-                get_color='[200, 30, 0, 160]',
+                get_color='[255, 140, 0, 160]',
                 get_elevation='costo_ele',
                 elevation_scale=100,
-                get_fill_color='[100, 30, 0, 160]',
-                get_line_color='[100, 30, 0, 160]',
+                get_fill_color='[255, 140, 0, 160]',
+                get_line_color='[255, 140, 0, 160]',
                 # elevation_range=[0, 10000000],
                 size_scale=10,
                 radius=50,
@@ -494,7 +700,7 @@ def neighborhood():
                 "GridLayer",
                 data=filtered_data,
                 get_position=["longitude", "latitude"],
-                get_color='[20, 30, 0, 160]',
+                get_color='[255, 140, 0, 160]',
                 elevation_scale=50,
                 elevation_range=[0, 100],
                 size_scale=int(5),
@@ -508,7 +714,7 @@ def neighborhood():
                 'ScatterplotLayer',
                 data=filtered_data,
                 get_position=["longitude", "latitude"],
-                get_color='[200, 30, 0, 160]',
+                get_color='[255, 140, 0, 160]',
                 get_radius=0,
                 opacity=0.5,
             ),
@@ -530,6 +736,63 @@ def neighborhood():
     ))
 
 
+def otras_herramientas():
+    # add Puerto Rico Solar Map: Generation and Storage Projects
+    st.subheader("Puerto Rico Solar Map: Generation and Storage Projects")
+    data1 = pd.read_csv('PR_Solar_Data_for_Mapping_Open_Data.csv')
+
+    # calculate the exit radius base on status Complete, In Progress, and Pending and size of the project
+    data1['exits_radius'] = data1.apply(lambda row: 100 if row['Status'] == 'Complete' else (
+        50 if row['Status'] == 'In Process' else 25), axis=1)
+
+    cols = st.columns([0.25, 0.50, 0.25])
+    with cols[0]:
+        total_projects = data1.shape[0]
+        st.metric(label="Total Projects", value=total_projects)
+
+    with cols[1]:
+
+        # st.dataframe(data1)
+        # here map will be displayed
+        layer = pdk.Layer(
+            "ScatterplotLayer",
+            data1,
+            pickable=True,
+            opacity=0.8,
+            stroked=True,
+            filled=True,
+            radius_scale=6,
+            radius_min_pixels=1,
+            radius_max_pixels=100,
+            line_width_min_pixels=1,
+            get_position=["Longitude", "Latitude"],
+            get_radius="exits_radius",
+            get_fill_color=[255, 140, 0],
+            get_line_color=[0, 0, 0],
+        )
+
+        # Set the initial map view
+        view_state = pdk.ViewState(
+            latitude=data1['Latitude'].mean(),
+            longitude=data1['Longitude'].mean(),
+            zoom=8,
+        )
+
+        # Create the map
+        map_plot = pdk.Deck(
+            map_style='mapbox://styles/mapbox/light-v9',
+            layers=[layer],
+            initial_view_state=view_state,
+        )
+
+        # Display the map
+        st.pydeck_chart(map_plot, use_container_width=True)
+
+    with cols[2]:
+        # here graph will be displayed
+        pass
+
+
 if __name__ == "__main__":
     menu_option = ["Inicio", "Municipios",
                    "Mi Ubicacion", "Otras Herramientas"]
@@ -538,7 +801,7 @@ if __name__ == "__main__":
                                    "list-task", 'gear'],
                             menu_icon="cast", default_index=2, orientation="horizontal")
 
-    selected2 = "Mi Ubicacion"
+    # selected2 = "Mi Ubicacion"
 
     st.markdown("""
 <style>
@@ -558,17 +821,7 @@ div[data-testid="metric-container"] > label[data-testid="stMetricLabel"] > div {
    color: black;
 }
 
-@font-face {
-    font-family: 'Poppins', sans-serif;
-    font-style: normal;
-    font-weight: 400;
-    src: url(https://fonts.gstatic.com/s/poppins/v15/pxiByp8kv8JHgFVrLGT9Z1xlEA.ttf) format('truetype');
-    }
 
-html, body, [class*="css"] {
-    font-family: 'Poppins', sans-serif;
-    font-size: 14px;
-    }
 
 </style>
 """, unsafe_allow_html=True)
@@ -579,3 +832,5 @@ html, body, [class*="css"] {
         neighborhood()
     elif selected2 == "Mi Ubicacion":
         main()
+    elif selected2 == "Otras Herramientas":
+        otras_herramientas()
