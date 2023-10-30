@@ -16,6 +16,7 @@ from geocodio import GeocodioClient
 from geopy.distance import geodesic
 
 geocodio_api = st.secrets["GEOCODIO_API_KEY"]
+coord1 = geocoder.ip('me').latlng
 
 st.set_page_config(page_title="Nearby Points of Interest",
                    page_icon="🌎", layout="wide", initial_sidebar_state="collapsed")
@@ -37,7 +38,6 @@ def load_data():
 
 
 def distance_2points(row):
-    coord1 = geocoder.ip('me').latlng
 
     # convert the latitude and longitude to floats
     row['latitude'] = float(row['latitude'])
@@ -72,14 +72,20 @@ def main():
     data = load_data()
     # ICON_URL = "https://static-00.iconduck.com/assets.00/solar-panel-icon-2048x1666-6migwmc6.png"
     # ICON_URL = "https://vinte.sh/images/powersolar.png"
-    ICON_URL = "https://powersolarpr.com/wp-content/uploads/2023/06/Icon-SolarPanel-1.png"
+    # ICON_URL = "https://powersolarpr.com/wp-content/uploads/2023/06/Icon-SolarPanel-1.png"
+    ICON_URL = "https://res.cloudinary.com/javier-jaramillo/image/upload/v1698679542/power_ico.png"
     icon_data = {
         "url": ICON_URL,
         # "path": ICON_PATH,
-        "width": 150,
-        "height": 150,
-        "anchorY": 150,
+        "width": 250,
+        "height": 250,
+        "anchorY": 250,
     }
+    # create a button to get the user's current location
+    st.sidebar.subheader("Ubicacion")
+    st.sidebar.button("Obtener mi ubicacion")
+    # coord1 = geocoder.ip('me').latlng
+    st.sidebar.write("Tu ubicacion actual es:" + str(coord1))
 
     # user_location = st.text_input("Enter your address:", "San Juan, Puerto Rico")
     current_location = (18.1388685, -66.2659351)
@@ -121,15 +127,11 @@ def main():
 
     # filtered_data['costo_ele'] = filtered_data['costo_ele'].astype(float)
 
-    filtered_data['icon_data'] = None
-    for i in filtered_data.index:
-        filtered_data.at[i, 'icon_data'] = icon_data
+    # st.write(filtered_data.head(10))
 
-    # st.dataframe(filtered_data['distance'])
+    filtered_data['icon_data'] = filtered_data.loc[:, ['latitude', 'longitude']].apply(
+        lambda row: icon_data, axis=1)
 
-    # st.write(icon_data)
-
-    # Add a column with the distance from the user's location
     cols = st.columns(4)
 
     with cols[0]:
@@ -739,6 +741,12 @@ def neighborhood():
 def otras_herramientas():
     # add Puerto Rico Solar Map: Generation and Storage Projects
     st.subheader("Puerto Rico Solar Map: Generation and Storage Projects")
+    st.markdown("""
+                This map shows solar and storage projects installed at critical facilities since Hurricane Maria in September 2017. The majority were funded by humanitarian and philanthropic organizations. The names of these Funders/Implementers and their proportional contribution can be found in the pie charts to the left. They can also be accessed through the drop-down menu on the top right. Totals for Puerto Rico are given in the widgets at the top of the map.
+                To view data by Funder/Implementer, select the organization of interest on the pie chart (please note the top pie chart has a second tab called "Other" Funders/Implementers where additional organizations can be found). Data for your selected organization will appear in the right-hand widgets. These tabs will remain blank unless a Funder/Implementer is selected.
+                To de-select click outside the pie chart or scroll to the top of the drop down list and select "All".
+                You can view individual project data by selecting dots on the map
+                """)
     data1 = pd.read_csv('PR_Solar_Data_for_Mapping_Open_Data.csv')
 
     # calculate the exit radius base on status Complete, In Progress, and Pending and size of the project
@@ -749,6 +757,8 @@ def otras_herramientas():
     with cols[0]:
         total_projects = data1.shape[0]
         st.metric(label="Total Projects", value=total_projects)
+        total_pv = data1['PV'].sum()
+        st.metric(label="Total PV", value=total_pv)
 
     with cols[1]:
 
