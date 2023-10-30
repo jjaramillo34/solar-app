@@ -4,6 +4,7 @@ import numpy as np
 import time
 import math
 import geocoder
+
 from datetime import datetime
 from geopy.distance import great_circle
 from geopy import distance
@@ -14,6 +15,9 @@ from shapely import wkt
 from geocodio import GeocodioClient
 # import geodesic from geopy
 from geopy.distance import geodesic
+# import Point from shapely
+from shapely.geometry import Point
+from pydeck.types import String
 
 geocodio_api = st.secrets["GEOCODIO_API_KEY"]
 coord1 = geocoder.ip('me').latlng
@@ -190,9 +194,9 @@ def main():
             # add a layer for the current location
             icon_data = {
                 "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Location_icon_from_Noun_Project.png/600px-Location_icon_from_Noun_Project.png?20210513221840",
-                "width": 50,
-                "height": 50,
-                "anchorY": 50,
+                "width": 150,
+                "height": 150,
+                "anchorY": 150,
             }
             current_location_data = pd.DataFrame(
                 {'latitude': [current_location[0]], 'longitude': [current_location[1]], 'icon_data': [icon_data]})
@@ -236,14 +240,25 @@ def main():
                 get_line_color=[255, 255, 255],
                 get_line_width=1,
                 pickable=False,
-
             )
+
+            # change the zoom level based on the distance
+            if distance <= 1:
+                zoom = 14
+            elif distance <= 2:
+                zoom = 13.5
+            elif distance <= 3:
+                zoom = 13
+            elif distance <= 4:
+                zoom = 12.5
+            else:
+                zoom = 12
 
             # Set the initial map view
             view_state = pdk.ViewState(
                 latitude=filtered_data['latitude'].mean(),
                 longitude=filtered_data['longitude'].mean(),
-                zoom=14,
+                zoom=zoom,
             )
 
             # Create the map
@@ -251,10 +266,12 @@ def main():
                 map_style='mapbox://styles/mapbox/light-v9',
                 layers=[layer, layer1, points_layer, circle_layer],
                 initial_view_state=view_state,
+                height=600,
             )
 
             # Display the map
             st.pydeck_chart(map_plot, use_container_width=True)
+            # st.components.v1.html(map_plot.to_html(as_string=True), height=600)
 
 #        st.subheader("Mapa de Posibles Clientes de Energia Solar en Puerto Rico")
 #
@@ -616,12 +633,37 @@ def neighborhood():
     start_lon = filtered_data['longitude'].mean()
 
     usa = gpd.read_file('cb_2013_us_county_500k.geojson')
+    usa = gpd.read_file(
+        'cb_2018_us_county_500k/cb_2018_us_county_500k.shp')
+    # usa = gpd.read_file('cb_2013_us_county_500k.geojson')
+
     usa = usa[usa['LSAD'] == '13']
-    json_municipio = usa[usa['Name'] == municipio]
-    json_municipio = json_municipio.to_crs("EPSG:4326")
-    centroids = gpd.GeoDataFrame()
+    json_municipio = usa[usa['NAME'] == municipio]
+    # st.write(json_municipio)
+    # convert geopandas dataframe to geoseires
+    # json_municipio = json_municipio.__geo_interface__.copy()
+    # print(json_municipio)
+    # st.write(json_municipio)
+
+    centroids = gpd.GeoDataFrame(
+        json_municipio, geometry='geometry')
+    centroids.set_geometry('geometry')
+    centroids = centroids.to_crs("EPSG:4326")
     centroids["geometry"] = json_municipio.geometry.centroid
-    centroids["Name"] = json_municipio.Name
+    centroids["Name"] = json_municipio.NAME
+    # centroids["geometry"] = json_municipio['features'][0]['geometry']['coordinates']
+    # centroids["Name"] = json_municipio['features'][0]['properties']['NAME']
+    # calculate the centroid of the polygon
+    # centroids["centroid"] = centroids["geometry"].apply(
+    #    lambda x: Point(np.mean(x[0], axis=0), np.mean(x[1], axis=0)))
+    # st.write(centroids)
+
+    # json_municipio = json_municipio.to_crs("EPSG:4326")
+    # json_municipio['centroid'] = json_municipio['geometry'].centroid
+    # st.write(json_municipio)
+
+    # centroids["geometry"] = json_municipio.geometry.centroid
+    # centroids["Name"] = json_municipio.Name
 
     # st.map(centroids, zoom=8)
 
@@ -635,7 +677,7 @@ def neighborhood():
     cols[0].metric(label="Total Consumption",
                    value=total_consumption, delta="MWh")
     consumption_per_capita = format(
-        filtered_data['comp1'].mean(), ",")
+        round(filtered_data['comp1'].mean(), 2), ",")
     cols[1].metric(label="Consumption per Capita", value=consumption_per_capita,
                    delta="MWh")
     co2_emissions = format(round(filtered_data['comp2'].mean()), ",")
@@ -705,8 +747,8 @@ def neighborhood():
                 get_color='[255, 140, 0, 160]',
                 elevation_scale=50,
                 elevation_range=[0, 100],
-                size_scale=int(5),
-                radius=int(20),
+                size_scale=int(3),
+                radius=int(15),
                 # pickable=True,
                 # extruded=bool(True),
                 auto_highlight=True,
@@ -729,10 +771,12 @@ def neighborhood():
                 'TextLayer',
                 data=centroids,
                 get_position="geometry.coordinates",
-                get_size=14,
+                get_size=18,
                 get_color=[255, 255, 255],
                 get_text="Name",
                 get_angle=0,
+                get_text_anchor=String("middle"),
+                get_alignment_baseline=String("center"),
             ),
         ],
     ))
