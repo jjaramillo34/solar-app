@@ -4,9 +4,12 @@ import numpy as np
 import time
 import math
 import geocoder
-
+import ipinfo
+import requests
+import json
 from datetime import datetime
 from geopy.distance import great_circle
+from geopy.geocoders import Nominatim
 from geopy import distance
 from streamlit_option_menu import option_menu
 import geopandas as gpd
@@ -18,9 +21,15 @@ from geopy.distance import geodesic
 # import Point from shapely
 from shapely.geometry import Point
 from pydeck.types import String
+import http.client
+import urllib.parse
 
 geocodio_api = st.secrets["GEOCODIO_API_KEY"]
 coord1 = geocoder.ip('me').latlng
+access_token = st.secrets["IPINFO_ACCESS_TOKEN"]
+handler = ipinfo.getHandler(access_token)
+details = handler.getDetails()
+
 
 st.set_page_config(page_title="Nearby Points of Interest",
                    page_icon="🌎", layout="wide", initial_sidebar_state="collapsed")
@@ -35,14 +44,30 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+def get_user_location(address=None):
+    conn = http.client.HTTPConnection('api.positionstack.com')
+    params = urllib.parse.urlencode({
+        'access_key': st.secrets["POSITIONSTACK_API_KEY"],
+        'query': address,
+        # 'region': 'Puerto Rico, USA',
+        'limit': 1,
+    })
+    conn.request('GET', '/v1/forward?{}'.format(params))
+    res = conn.getresponse()
+    data = res.read()
+    # print(data.decode('utf-8'))
+
+    return data.decode('utf-8')
+
 # Load the CSV file containing points of interest
+
+
 def load_data():
     df = pd.read_csv('data_v1.csv')
     return df
 
 
 def distance_2points(row):
-
     # convert the latitude and longitude to floats
     row['latitude'] = float(row['latitude'])
     row['longitude'] = float(row['longitude'])
@@ -91,11 +116,32 @@ def main():
     # coord1 = geocoder.ip('me').latlng
     st.sidebar.write("Tu ubicacion actual es:" + str(coord1))
 
+    st.sidebar.subheader("Informacion")
+    st.sidebar.write("Tu IP es: " + details.ip)
+
+    geolocation = (details.latitude, details.longitude)
+
+    use_location = st.sidebar.checkbox("Usar mi ubicacion", value=False)
+    user_location = get_user_location()
+    # st.sidebar.write("Tu ubicacion actual es:" + str(user_location))
+
     # user_location = st.text_input("Enter your address:", "San Juan, Puerto Rico")
     current_location = (18.1388685, -66.2659351)
+    add = st.text_input("Ingresa tu direccion:",
+                        "32 Cll Ruiz Belvis, Ponce, PR 00717")
+    if add != "":
+        loc = get_user_location(address=add)
+        json_obj = json.loads(loc)
+        latitude = json_obj['data'][0]['latitude']
+        longitude = json_obj['data'][0]['longitude']
+        # current_location = (latitude, longitude)
+        curr = (latitude, longitude)
+        st.write("Tu ubicacion actual es:" + str(curr))
+    else:
+        st.error("Por favor ingresa una direccion valida")
 
     client = GeocodioClient(geocodio_api)
-    address1 = client.reverse(current_location)
+    address1 = client.reverse(curr)
     # parse the json response for the geocodio api
     # st.write(address1)
 
@@ -117,14 +163,15 @@ def main():
     # current_location = geocoder.ip('me').latlng
     # fake location from puerto rico
     # use geopandas to reverse geocode the user's location
-    st.write("Tu ubicacion actual es:" + str(current_location))
-    address = gpd.tools.geocode(current_location, provider='geocodio', user_agent='my-application',
+
+    # st.write("Tu ubicacion actual es:" + str(current_location))
+    address = gpd.tools.geocode(curr, provider='geocodio', user_agent='my-application',
                                 timeout=5, api_key=geocodio_api)
     # markdown showing the current location of the user
 
     # Filter points within the selected distance
     filtered_data = data[data.apply(lambda row: great_circle(
-        (row['latitude'], row['longitude']), current_location).miles <= distance, axis=1)]
+        (row['latitude'], row['longitude']), curr).miles <= distance, axis=1)]
 
     filtered_data['distance'] = filtered_data.apply(
         lambda row: distance_2points(row), axis=1)
@@ -199,7 +246,7 @@ def main():
                 "anchorY": 150,
             }
             current_location_data = pd.DataFrame(
-                {'latitude': [current_location[0]], 'longitude': [current_location[1]], 'icon_data': [icon_data]})
+                {'latitude': [curr[0]], 'longitude': [curr[1]], 'icon_data': [icon_data]})
 
             # st.write(current_location_data)
             layer1 = pdk.Layer(
