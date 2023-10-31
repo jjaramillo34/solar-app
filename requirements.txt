@@ -9,3 +9,4 @@ pygeocodio
 plotly-express
 matplotlib
 squarify
+ipinfo
